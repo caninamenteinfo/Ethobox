@@ -1,0 +1,222 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, Send, FileText, Lock, RotateCcw } from "lucide-react";
+import { DomainPanel } from "@/components/DomainPanel";
+import { ReportView } from "@/components/ReportView";
+import type { AnamnesisEntry, Case, Formulation } from "@/types";
+
+const STATUS_LABEL: Record<string, string> = {
+  gathering: "Recogiendo información",
+  ready: "Informe listo (borrador)",
+  closed: "Cerrada · versión vigente",
+};
+
+export function RoundWorkspace({
+  theCase,
+  initialFormulation,
+  initialEntries,
+}: {
+  theCase: Case;
+  initialFormulation: Formulation;
+  initialEntries: AnamnesisEntry[];
+}) {
+  const router = useRouter();
+  const [formulation, setFormulation] = useState(initialFormulation);
+  const [entries, setEntries] = useState(initialEntries);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState<null | "analyze" | "force" | "close" | "newRound">(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const base = `/api/cases/${theCase.id}/formulations/${formulation.id}`;
+
+  const analyze = async () => {
+    if (!draft.trim() || busy) return;
+    setBusy("analyze");
+    setError(null);
+    const res = await fetch(`${base}/entries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rawText: draft }),
+    });
+    const data = await res.json().catch(() => null);
+    setBusy(null);
+    if (!res.ok) {
+      setError(data?.error || "Error al analizar.");
+      return;
+    }
+    setFormulation(data.formulation);
+    setEntries(data.entries);
+    setDraft("");
+  };
+
+  const forceReport = async () => {
+    if (busy) return;
+    setBusy("force");
+    setError(null);
+    const res = await fetch(`${base}/generate-report`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    setBusy(null);
+    if (!res.ok) {
+      setError(data?.error || "Error al generar el informe.");
+      return;
+    }
+    setFormulation(data.formulation);
+  };
+
+  const close = async () => {
+    if (busy) return;
+    setBusy("close");
+    setError(null);
+    const res = await fetch(`${base}/close`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    setBusy(null);
+    if (!res.ok) {
+      setError(data?.error || "Error al cerrar la ronda.");
+      return;
+    }
+    setFormulation(data.formulation);
+  };
+
+  const newRound = async () => {
+    if (busy) return;
+    setBusy("newRound");
+    setError(null);
+    const res = await fetch(`${base}/new-round`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    setBusy(null);
+    if (!res.ok) {
+      setError(data?.error || "Error al abrir la nueva ronda.");
+      return;
+    }
+    router.push(`/cases/${theCase.id}/rounds/${data.formulation.id}`);
+  };
+
+  const sufficiency = "is_sufficient" in formulation.sufficiency ? formulation.sufficiency : null;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-heading font-semibold text-slate-900">
+            Ronda {formulation.round_number} · {theCase.dog_name}
+          </h1>
+          <p className="text-sm text-slate-500">{STATUS_LABEL[formulation.status]}</p>
+        </div>
+      </div>
+
+      {sufficiency && (
+        <div
+          className={`rounded-xl border p-4 text-sm ${
+            sufficiency.is_sufficient
+              ? "border-teal-200 bg-teal-50 text-teal-900"
+              : "border-amber-200 bg-amber-50 text-amber-900"
+          }`}
+        >
+          <p className="font-medium">
+            {sufficiency.is_sufficient
+              ? "La IA considera que hay suficiente información para actuar."
+              : "La IA considera que aún no hay suficiente información."}
+          </p>
+          <p className="mt-1">{sufficiency.reasoning}</p>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+              Anamnesis de esta ronda
+            </h2>
+            <div className="space-y-3 max-h-80 overflow-y-auto mb-3">
+              {entries.length === 0 && (
+                <p className="text-sm text-slate-400">
+                  Pega o dicta aquí lo que te ha contado el tutor (o tus propias notas de consulta).
+                </p>
+              )}
+              {entries.map((e) => (
+                <div key={e.id} className="text-sm bg-slate-50 rounded-lg p-3 whitespace-pre-wrap">
+                  {e.raw_text}
+                </div>
+              ))}
+            </div>
+
+            {formulation.status !== "closed" && (
+              <>
+                <textarea
+                  value={draft}
+                  onChange={(ev) => setDraft(ev.target.value)}
+                  rows={4}
+                  placeholder="Escribe o pega la información recogida…"
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-600"
+                />
+                <button
+                  onClick={analyze}
+                  disabled={!draft.trim() || busy !== null}
+                  className="mt-2 flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium disabled:opacity-50"
+                >
+                  {busy === "analyze" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                  Analizar
+                </button>
+              </>
+            )}
+          </div>
+
+          {formulation.next_questions?.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                Preguntas sugeridas (mayor valor diferencial)
+              </h2>
+              <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
+                {formulation.next_questions.map((q, i) => (
+                  <li key={i}>{q}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <DomainPanel caseModel={formulation.case_model} hypotheses={formulation.working_hypotheses || []} />
+      </div>
+
+      {error && <p className="text-red-600 text-sm">{error}</p>}
+
+      {formulation.status !== "closed" && (
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={forceReport}
+            disabled={busy !== null || entries.length === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-teal-600 text-teal-700 text-sm font-medium disabled:opacity-50"
+          >
+            {busy === "force" ? <Loader2 size={16} className="animate-spin" /> : <FileText size={16} />}
+            {formulation.report ? "Regenerar informe" : "Generar informe ahora"}
+          </button>
+          {formulation.status === "ready" && (
+            <button
+              onClick={close}
+              disabled={busy !== null}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-white text-sm font-medium disabled:opacity-50"
+            >
+              {busy === "close" ? <Loader2 size={16} className="animate-spin" /> : <Lock size={16} />}
+              Cerrar esta ronda como vigente
+            </button>
+          )}
+        </div>
+      )}
+
+      {formulation.status !== "gathering" && (
+        <button
+          onClick={newRound}
+          disabled={busy !== null}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-medium disabled:opacity-50"
+        >
+          {busy === "newRound" ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}
+          Iniciar nueva ronda (tras aplicar la estrategia)
+        </button>
+      )}
+
+      {formulation.report && <ReportView report={formulation.report} />}
+    </div>
+  );
+}
