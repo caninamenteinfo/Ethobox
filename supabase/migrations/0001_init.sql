@@ -59,6 +59,8 @@ create table if not exists public.formulations (
   -- contexto, tutor, relación perro-tutor, salud, entorno social,
   -- recursos/limitaciones). Ver src/lib/domains.ts.
   case_model jsonb not null default '{}'::jsonb,
+  -- Hipótesis de trabajo: [{ hypothesis, supporting_evidence, contradicting_evidence, alternatives }]
+  working_hypotheses jsonb not null default '[]'::jsonb,
   -- { is_sufficient, reasoning, open_uncertainties: string[] }
   sufficiency jsonb not null default '{}'::jsonb,
   -- Preguntas de alto rendimiento informativo sugeridas para seguir
