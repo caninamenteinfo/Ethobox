@@ -4,11 +4,142 @@ import type { AnalysisResult, CaseModel, WorkingHypothesis } from "@/types";
 
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
 
-async function callClaude(
+const REPORT_SCHEMA = {
+  type: ["object", "null"],
+  description: "Informe profesional estandarizado de 12 secciones, o null si aún no se genera.",
+  properties: {
+    lectura_rapida: {
+      type: "object",
+      properties: {
+        problema_principal: { type: "string" },
+        hipotesis_principal: { type: "string" },
+        nivel_confianza: { type: "string" },
+        prioridad_actual: { type: "string" },
+        decision_estrategica_inicial: { type: "string" },
+      },
+      required: [
+        "problema_principal",
+        "hipotesis_principal",
+        "nivel_confianza",
+        "prioridad_actual",
+        "decision_estrategica_inicial",
+      ],
+    },
+    comprension_caso: { type: "string" },
+    umwelt: { type: "string" },
+    sustrato_estado_funcional: { type: "string" },
+    dinamica_neuroconductual: { type: "string" },
+    sistemas_emocionales_motivacionales: { type: "string" },
+    formulacion_hipotesis: {
+      type: "object",
+      properties: {
+        hipotesis_principal: { type: "string" },
+        evidencias: { type: "array", items: { type: "string" } },
+        contradicciones: { type: "array", items: { type: "string" } },
+        alternativas: { type: "array", items: { type: "string" } },
+        incertidumbres: { type: "array", items: { type: "string" } },
+      },
+      required: ["hipotesis_principal", "evidencias", "contradicciones", "alternativas", "incertidumbres"],
+    },
+    factores_a_modificar: {
+      type: "object",
+      properties: {
+        perro: { type: "string" },
+        umwelt: { type: "string" },
+        tutor: { type: "string" },
+        interaccion: { type: "string" },
+        contexto: { type: "string" },
+      },
+      required: ["perro", "umwelt", "tutor", "interaccion", "contexto"],
+    },
+    estrategia_inicial: {
+      type: "object",
+      properties: {
+        objetivos: { type: "array", items: { type: "string" } },
+        prioridades: { type: "array", items: { type: "string" } },
+        orden_intervencion: { type: "array", items: { type: "string" } },
+        que_evitar: { type: "array", items: { type: "string" } },
+        herramientas_propuestas: { type: "array", items: { type: "string" } },
+      },
+      required: ["objetivos", "prioridades", "orden_intervencion", "que_evitar", "herramientas_propuestas"],
+    },
+    apoyos_complementarios: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          item: { type: "string" },
+          nivel_evidencia: { type: "string" },
+          precauciones: { type: "string" },
+        },
+        required: ["item", "nivel_evidencia", "precauciones"],
+      },
+    },
+    indicadores_evolucion: { type: "array", items: { type: "string" } },
+    criterios_reevaluacion: {
+      type: "object",
+      properties: {
+        mantener: { type: "string" },
+        progresar: { type: "string" },
+        retroceder: { type: "string" },
+        reformular: { type: "string" },
+      },
+      required: ["mantener", "progresar", "retroceder", "reformular"],
+    },
+  },
+};
+
+const ANALYSIS_TOOL = {
+  name: "submit_case_analysis",
+  description:
+    "Registra el análisis actualizado del caso: representación por dominios, hipótesis de trabajo, evaluación de suficiencia, preguntas sugeridas y, si procede, el informe profesional.",
+  input_schema: {
+    type: "object",
+    properties: {
+      case_model: {
+        type: "object",
+        description:
+          "Síntesis narrativa acumulada por dominio (clave = clave de dominio, valor = texto). Incluye todas las claves de dominio conocidas, incluso sin cambios.",
+        additionalProperties: { type: "string" },
+      },
+      working_hypotheses: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            hypothesis: { type: "string" },
+            supporting_evidence: { type: "array", items: { type: "string" } },
+            contradicting_evidence: { type: "array", items: { type: "string" } },
+            alternatives: { type: "array", items: { type: "string" } },
+          },
+          required: ["hypothesis", "supporting_evidence", "contradicting_evidence", "alternatives"],
+        },
+      },
+      sufficiency: {
+        type: "object",
+        properties: {
+          is_sufficient: { type: "boolean" },
+          reasoning: { type: "string" },
+          open_uncertainties: { type: "array", items: { type: "string" } },
+        },
+        required: ["is_sufficient", "reasoning", "open_uncertainties"],
+      },
+      next_questions: {
+        type: "array",
+        items: { type: "string" },
+        description: "Preguntas de alto rendimiento informativo pendientes. Vacío si sufficiency.is_sufficient.",
+      },
+      report: REPORT_SCHEMA,
+    },
+    required: ["case_model", "working_hypotheses", "sufficiency", "next_questions", "report"],
+  },
+};
+
+async function callClaudeForAnalysis(
   messages: { role: string; content: string }[],
   system: string,
-  maxTokens = 4000
-): Promise<string> {
+  maxTokens = 8000
+): Promise<AnalysisResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error("ANTHROPIC_API_KEY no está configurada en el servidor.");
@@ -26,6 +157,8 @@ async function callClaude(
       max_tokens: maxTokens,
       system,
       messages,
+      tools: [ANALYSIS_TOOL],
+      tool_choice: { type: "tool", name: "submit_case_analysis" },
     }),
   });
 
@@ -35,25 +168,22 @@ async function callClaude(
   }
 
   const data = await response.json();
-  const text = (data.content || [])
-    .filter((b: { type: string }) => b.type === "text")
-    .map((b: { text: string }) => b.text)
-    .join("\n");
 
-  if (!text) {
-    throw new Error("Respuesta vacía del modelo.");
+  if (data.stop_reason === "max_tokens") {
+    throw new Error(
+      "La respuesta del modelo se cortó por longitud antes de terminar el análisis. Prueba a generar el informe con menos información acumulada, o inténtalo de nuevo."
+    );
   }
-  return text;
-}
 
-function extractJson(reply: string): unknown {
-  let clean = reply.replace(/```json|```/g, "").trim();
-  const firstBrace = clean.indexOf("{");
-  const lastBrace = clean.lastIndexOf("}");
-  if (firstBrace !== -1 && lastBrace !== -1) {
-    clean = clean.slice(firstBrace, lastBrace + 1);
+  const toolUse = (data.content || []).find(
+    (b: { type: string }) => b.type === "tool_use"
+  ) as { type: string; input: unknown } | undefined;
+
+  if (!toolUse) {
+    throw new Error("El modelo no devolvió el análisis en el formato esperado.");
   }
-  return JSON.parse(clean);
+
+  return toolUse.input as AnalysisResult;
 }
 
 const DOMAIN_LIST_TEXT = DOMAIN_KEYS.map((k) => `- ${k}: ${DOMAIN_LABELS[k]}`).join("\n");
@@ -78,30 +208,7 @@ REGLAS DE RAZONAMIENTO
 - El informe debe recomendar, no solo describir: propone qué hacer, en qué orden, por qué, qué evitar, qué observar, y qué indicaría que la estrategia funciona o hay que modificarla. Pero la IA propone, el profesional decide: no ocultes incertidumbre para parecer más seguro.
 - Nunca atribuyas automáticamente un fracaso de la estrategia al tutor.
 
-FORMATO DE SALIDA
-Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown, con exactamente esta forma:
-{
-  "case_model": { "<clave_de_dominio>": "síntesis narrativa acumulada de ese dominio, o cadena vacía si aún no se ha explorado", ... incluye TODAS las claves de dominio listadas arriba, incluso si no cambian respecto a lo que ya tenías ... },
-  "working_hypotheses": [ { "hypothesis": "...", "supporting_evidence": ["..."], "contradicting_evidence": ["..."], "alternatives": ["..."] } ],
-  "sufficiency": { "is_sufficient": true|false, "reasoning": "por qué crees que sí/no basta ya para actuar", "open_uncertainties": ["..."] },
-  "next_questions": ["pregunta de alto rendimiento informativo 1", "..."],
-  "report": null | {
-    "lectura_rapida": { "problema_principal": "...", "hipotesis_principal": "...", "nivel_confianza": "...", "prioridad_actual": "...", "decision_estrategica_inicial": "..." },
-    "comprension_caso": "...",
-    "umwelt": "...",
-    "sustrato_estado_funcional": "...",
-    "dinamica_neuroconductual": "...",
-    "sistemas_emocionales_motivacionales": "...",
-    "formulacion_hipotesis": { "hipotesis_principal": "...", "evidencias": ["..."], "contradicciones": ["..."], "alternativas": ["..."], "incertidumbres": ["..."] },
-    "factores_a_modificar": { "perro": "...", "umwelt": "...", "tutor": "...", "interaccion": "...", "contexto": "..." },
-    "estrategia_inicial": { "objetivos": ["..."], "prioridades": ["..."], "orden_intervencion": ["..."], "que_evitar": ["..."], "herramientas_propuestas": ["..."] },
-    "apoyos_complementarios": [ { "item": "...", "nivel_evidencia": "...", "precauciones": "..." } ],
-    "indicadores_evolucion": ["..."],
-    "criterios_reevaluacion": { "mantener": "...", "progresar": "...", "retroceder": "...", "reformular": "..." }
-  }
-}
-
-Rellena "report" (con la estructura completa de arriba) si sufficiency.is_sufficient es true, o si el profesional ha pedido explícitamente generar el informe aunque la información sea incompleta (en ese caso, marca las incertidumbres relevantes en incertidumbres/indicadores_evolucion en vez de bloquear). En caso contrario, "report" debe ser null y next_questions debe contener las preguntas pendientes de mayor valor.`;
+Registra siempre tu análisis llamando a la herramienta submit_case_analysis con TODOS sus campos. Rellena "report" (con su estructura completa) solo si sufficiency.is_sufficient es true, o si el profesional ha pedido explícitamente generar el informe aunque la información sea incompleta (en ese caso, marca las incertidumbres relevantes en incertidumbres/indicadores_evolucion en vez de bloquear). En caso contrario, "report" debe ser null y next_questions debe contener las preguntas pendientes de mayor valor.`;
 
 export interface AnalyzeAnamnesisInput {
   dogName: string;
@@ -141,24 +248,14 @@ export async function analyzeAnamnesis(input: AnalyzeAnamnesisInput): Promise<An
       : "Evalúa honestamente si ya se alcanza el umbral de suficiencia estratégica. Si no, no generes el informe: sugiere las preguntas de mayor valor para continuar."
   );
 
-  const reply = await callClaude(
+  const result = await callClaudeForAnalysis(
     [{ role: "user", content: contextParts.join("\n\n") }],
     SYSTEM_PROMPT,
     8000
   );
 
-  let parsed: AnalysisResult;
-  try {
-    parsed = extractJson(reply) as AnalysisResult;
-  } catch (err) {
-    throw new Error(
-      `No se ha podido interpretar la respuesta del modelo como JSON (posiblemente se cortó por longitud). Detalle: ${
-        err instanceof Error ? err.message : String(err)
-      }`
-    );
-  }
-  if (!parsed.case_model || !parsed.sufficiency) {
+  if (!result.case_model || !result.sufficiency) {
     throw new Error("Respuesta del modelo con formato inesperado (faltan campos obligatorios).");
   }
-  return parsed;
+  return result;
 }
