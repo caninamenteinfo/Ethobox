@@ -16,6 +16,7 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+drop policy if exists "profiles: select propio" on public.profiles;
 create policy "profiles: select propio" on public.profiles
   for select using (auth.uid() = id);
 
