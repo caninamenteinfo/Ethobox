@@ -10,7 +10,7 @@ const ENTRY_COLUMNS = "id, formulation_id, case_id, raw_text, created_at";
 export async function listCasesForProfessional(professionalId: string): Promise<Case[]> {
   const admin = supabaseAdmin();
   const { data, error } = await admin
-    .from("cases")
+    .from("ethobox_cases")
     .select(CASE_COLUMNS)
     .eq("professional_id", professionalId)
     .order("updated_at", { ascending: false });
@@ -21,7 +21,7 @@ export async function listCasesForProfessional(professionalId: string): Promise<
 export async function getCaseById(caseId: string, professionalId: string): Promise<Case | null> {
   const admin = supabaseAdmin();
   const { data } = await admin
-    .from("cases")
+    .from("ethobox_cases")
     .select(CASE_COLUMNS)
     .eq("id", caseId)
     .eq("professional_id", professionalId)
@@ -37,7 +37,7 @@ export async function createCase(fields: {
 }): Promise<Case> {
   const admin = supabaseAdmin();
   const { data, error } = await admin
-    .from("cases")
+    .from("ethobox_cases")
     .insert({
       professional_id: fields.professionalId,
       dog_name: fields.dogName,
@@ -48,7 +48,7 @@ export async function createCase(fields: {
     .single();
   if (error || !data) throw new Error(error?.message || "No se ha podido crear el caso.");
 
-  await admin.from("formulations").insert({
+  await admin.from("ethobox_formulations").insert({
     case_id: data.id,
     round_number: 1,
     previous_formulation_id: null,
@@ -65,7 +65,7 @@ export async function createCase(fields: {
 export async function listFormulations(caseId: string): Promise<Formulation[]> {
   const admin = supabaseAdmin();
   const { data, error } = await admin
-    .from("formulations")
+    .from("ethobox_formulations")
     .select(FORMULATION_COLUMNS)
     .eq("case_id", caseId)
     .order("round_number", { ascending: false });
@@ -76,7 +76,7 @@ export async function listFormulations(caseId: string): Promise<Formulation[]> {
 export async function getFormulationById(formulationId: string, caseId: string): Promise<Formulation | null> {
   const admin = supabaseAdmin();
   const { data } = await admin
-    .from("formulations")
+    .from("ethobox_formulations")
     .select(FORMULATION_COLUMNS)
     .eq("id", formulationId)
     .eq("case_id", caseId)
@@ -87,7 +87,7 @@ export async function getFormulationById(formulationId: string, caseId: string):
 export async function listEntries(formulationId: string): Promise<AnamnesisEntry[]> {
   const admin = supabaseAdmin();
   const { data, error } = await admin
-    .from("anamnesis_entries")
+    .from("ethobox_anamnesis_entries")
     .select(ENTRY_COLUMNS)
     .eq("formulation_id", formulationId)
     .order("created_at", { ascending: true });
@@ -102,7 +102,7 @@ export async function addEntry(fields: {
 }): Promise<AnamnesisEntry> {
   const admin = supabaseAdmin();
   const { data, error } = await admin
-    .from("anamnesis_entries")
+    .from("ethobox_anamnesis_entries")
     .insert({ formulation_id: fields.formulationId, case_id: fields.caseId, raw_text: fields.rawText })
     .select(ENTRY_COLUMNS)
     .single();
@@ -123,7 +123,7 @@ export async function updateFormulationAnalysis(
   const admin = supabaseAdmin();
   const status = fields.report ? "ready" : "gathering";
   const { data, error } = await admin
-    .from("formulations")
+    .from("ethobox_formulations")
     .update({
       case_model: fields.caseModel,
       working_hypotheses: fields.workingHypotheses,
@@ -143,7 +143,7 @@ export async function updateFormulationAnalysis(
 export async function closeFormulation(formulationId: string): Promise<Formulation> {
   const admin = supabaseAdmin();
   const { data, error } = await admin
-    .from("formulations")
+    .from("ethobox_formulations")
     .update({ status: "closed", closed_at: new Date().toISOString() })
     .eq("id", formulationId)
     .eq("status", "ready")
@@ -165,14 +165,14 @@ export async function startNewRound(fields: {
 }): Promise<Formulation> {
   const admin = supabaseAdmin();
   const { data: prev, error: prevError } = await admin
-    .from("formulations")
+    .from("ethobox_formulations")
     .select("round_number")
     .eq("id", fields.previousFormulationId)
     .single();
   if (prevError || !prev) throw new Error(prevError?.message || "Ronda anterior no encontrada.");
 
   const { data, error } = await admin
-    .from("formulations")
+    .from("ethobox_formulations")
     .insert({
       case_id: fields.caseId,
       round_number: prev.round_number + 1,

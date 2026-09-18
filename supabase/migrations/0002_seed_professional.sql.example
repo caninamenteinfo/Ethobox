@@ -6,6 +6,6 @@
 -- 3) Ejecuta este bloque (ya renombrado a .sql, o pegado directamente)
 --    en el SQL Editor de Supabase para darle rol de profesional.
 
-insert into public.profiles (id, role, full_name)
+insert into public.ethobox_profiles (id, role, full_name)
 values ('PEGA-AQUI-EL-USER-UID', 'professional', 'Tu nombre')
 on conflict (id) do update set role = 'professional';

@@ -16,7 +16,7 @@ export async function getProfessionalUser() {
 
   const admin = supabaseAdmin();
   const { data: profile } = await admin
-    .from("profiles")
+    .from("ethobox_profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
