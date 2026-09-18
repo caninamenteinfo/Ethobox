@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, Send, FileText, Lock, RotateCcw } from "lucide-react";
+import { Loader2, Send, FileText, Lock, RotateCcw, HeartHandshake, Stethoscope } from "lucide-react";
 import { DomainPanel } from "@/components/DomainPanel";
 import { ReportView } from "@/components/ReportView";
+import { FamilyReportView } from "@/components/FamilyReportView";
+import { VetReportView } from "@/components/VetReportView";
 import type { AnamnesisEntry, Case, Formulation } from "@/types";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -13,21 +16,29 @@ const STATUS_LABEL: Record<string, string> = {
   closed: "Cerrada · versión vigente",
 };
 
+const STATUS_DOT: Record<string, string> = {
+  gathering: "bg-amber-400",
+  ready: "bg-teal-500",
+  closed: "bg-slate-400",
+};
+
 export function RoundWorkspace({
   theCase,
   initialFormulation,
   initialEntries,
+  allRounds,
 }: {
   theCase: Case;
   initialFormulation: Formulation;
   initialEntries: AnamnesisEntry[];
+  allRounds: Formulation[];
 }) {
   const router = useRouter();
   const [formulation, setFormulation] = useState(initialFormulation);
   const [entries, setEntries] = useState(initialEntries);
   const [draft, setDraft] = useState("");
   const [answers, setAnswers] = useState<string[]>(() => (initialFormulation.next_questions || []).map(() => ""));
-  const [busy, setBusy] = useState<null | "analyze" | "force" | "close" | "newRound">(null);
+  const [busy, setBusy] = useState<null | "analyze" | "force" | "close" | "newRound" | "family" | "vet">(null);
   const [error, setError] = useState<string | null>(null);
 
   const base = `/api/cases/${theCase.id}/formulations/${formulation.id}`;
@@ -114,6 +125,34 @@ export function RoundWorkspace({
     setFormulation(data.formulation);
   };
 
+  const generateFamily = async () => {
+    if (busy) return;
+    setBusy("family");
+    setError(null);
+    const res = await fetch(`${base}/generate-family-report`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    setBusy(null);
+    if (!res.ok) {
+      setError(data?.error || "Error al generar el informe familiar.");
+      return;
+    }
+    setFormulation(data.formulation);
+  };
+
+  const generateVet = async () => {
+    if (busy) return;
+    setBusy("vet");
+    setError(null);
+    const res = await fetch(`${base}/generate-vet-report`, { method: "POST" });
+    const data = await res.json().catch(() => null);
+    setBusy(null);
+    if (!res.ok) {
+      setError(data?.error || "Error al generar la nota para el veterinario.");
+      return;
+    }
+    setFormulation(data.formulation);
+  };
+
   const newRound = async () => {
     if (busy) return;
     setBusy("newRound");
@@ -135,11 +174,32 @@ export function RoundWorkspace({
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-heading font-semibold text-slate-900">
-            Ronda {formulation.round_number} · {theCase.dog_name}
+            {formulation.round_number}ª anamnesis · {theCase.dog_name}
           </h1>
           <p className="text-sm text-slate-500">{STATUS_LABEL[formulation.status]}</p>
         </div>
       </div>
+
+      {allRounds.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {[...allRounds]
+            .sort((a, b) => a.round_number - b.round_number)
+            .map((r) => (
+              <Link
+                key={r.id}
+                href={`/cases/${theCase.id}/rounds/${r.id}`}
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border ${
+                  r.id === formulation.id
+                    ? "border-teal-600 bg-teal-50 text-teal-800 font-medium"
+                    : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[r.status]}`} />
+                {r.round_number}ª anamnesis
+              </Link>
+            ))}
+        </div>
+      )}
 
       {sufficiency && (
         <div
@@ -278,7 +338,36 @@ export function RoundWorkspace({
         </button>
       )}
 
-      {formulation.report && <ReportView report={formulation.report} />}
+      {formulation.report && (
+        <>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={generateFamily}
+              disabled={busy !== null}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-amber-500 text-amber-700 text-sm font-medium disabled:opacity-50"
+            >
+              {busy === "family" ? <Loader2 size={16} className="animate-spin" /> : <HeartHandshake size={16} />}
+              {formulation.family_report ? "Regenerar informe familiar" : "Generar informe para la familia"}
+            </button>
+            <button
+              onClick={generateVet}
+              disabled={busy !== null}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg border border-sky-500 text-sky-700 text-sm font-medium disabled:opacity-50"
+            >
+              {busy === "vet" ? <Loader2 size={16} className="animate-spin" /> : <Stethoscope size={16} />}
+              {formulation.vet_report ? "Regenerar nota veterinaria" : "Generar nota para el veterinario"}
+            </button>
+          </div>
+
+          <ReportView report={formulation.report} />
+        </>
+      )}
+
+      {formulation.family_report && (
+        <FamilyReportView report={formulation.family_report} dogName={theCase.dog_name} />
+      )}
+
+      {formulation.vet_report && <VetReportView report={formulation.vet_report} dogName={theCase.dog_name} />}
     </div>
   );
 }

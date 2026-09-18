@@ -1,6 +1,13 @@
 import "server-only";
 import { DOMAIN_KEYS, DOMAIN_LABELS } from "@/lib/domains";
-import type { AnalysisResult, CaseModel, ProfessionalReport, WorkingHypothesis } from "@/types";
+import type {
+  AnalysisResult,
+  CaseModel,
+  FamilyReport,
+  ProfessionalReport,
+  VetReport,
+  WorkingHypothesis,
+} from "@/types";
 
 const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5";
 
@@ -151,6 +158,111 @@ const REPORT_TOOL = {
   },
 };
 
+const FAMILY_REPORT_TOOL = {
+  name: "submit_family_report",
+  description:
+    "Registra el informe para la familia/tutor: otro producto, no un resumen del informe profesional. Lenguaje claro, cálido, sin jerga técnica.",
+  input_schema: {
+    type: "object",
+    properties: {
+      entender_que_le_esta_pasando: {
+        type: "string",
+        description: "Explicación clara, cálida y no culpabilizadora de qué le pasa al perro.",
+      },
+      que_creemos_que_esta_ocurriendo: {
+        type: "string",
+        description: "La formulación profesional traducida a lenguaje familiar, sin jerga técnica.",
+      },
+      lo_que_no_vamos_a_hacer: { type: "array", items: { type: "string" }, description: "Muy concreto." },
+      lo_que_si_vamos_a_hacer: { type: "array", items: { type: "string" }, description: "Muy concreto." },
+      primer_objetivo: {
+        type: "string",
+        description: "Qué capacidad se quiere desarrollar antes de perseguir el síntoma final.",
+      },
+      ejercicios: {
+        type: "array",
+        description: "Derivados específicamente de la formulación de este caso, nunca de una lista automática.",
+        items: {
+          type: "object",
+          properties: {
+            nombre: { type: "string" },
+            para_que_sirve: { type: "string" },
+            donde: { type: "string" },
+            cuando: { type: "string" },
+            como: { type: "string" },
+            cuando_premiar: { type: "string" },
+            que_observar: { type: "string" },
+            cuando_detenerse: { type: "string" },
+            como_saber_si_es_demasiado_dificil: { type: "string" },
+            como_progresar: { type: "string" },
+          },
+          required: [
+            "nombre",
+            "para_que_sirve",
+            "donde",
+            "cuando",
+            "como",
+            "cuando_premiar",
+            "que_observar",
+            "cuando_detenerse",
+            "como_saber_si_es_demasiado_dificil",
+            "como_progresar",
+          ],
+        },
+      },
+    },
+    required: [
+      "entender_que_le_esta_pasando",
+      "que_creemos_que_esta_ocurriendo",
+      "lo_que_no_vamos_a_hacer",
+      "lo_que_si_vamos_a_hacer",
+      "primer_objetivo",
+      "ejercicios",
+    ],
+  },
+};
+
+const VET_REPORT_TOOL = {
+  name: "submit_vet_report",
+  description:
+    "Registra una nota de derivación/consulta para el veterinario que colabora en el caso: comunicación clínica entre profesionales.",
+  input_schema: {
+    type: "object",
+    properties: {
+      motivo_derivacion: {
+        type: "string",
+        description: "Por qué se escribe al veterinario. Si no hay motivo médico relevante, decirlo con honestidad.",
+      },
+      resumen_caso: { type: "string" },
+      hallazgos_relevantes_sustrato_salud: {
+        type: "string",
+        description: "Distinguiendo explícitamente dato observado de inferencia.",
+      },
+      hipotesis_conductual_relevante: { type: "string" },
+      preguntas_para_el_veterinario: {
+        type: "array",
+        items: { type: "string" },
+        description: "Peticiones concretas: descartar X, valorar Y...",
+      },
+      apoyo_farmacologico_o_medico_a_valorar: {
+        type: "array",
+        items: { type: "string" },
+        description: "Categorías a valorar por el veterinario, nunca una prescripción.",
+      },
+      urgencia: { type: "string", description: "p.ej. rutinaria / preferente / urgente, con breve justificación." },
+    },
+    required: [
+      "motivo_derivacion",
+      "resumen_caso",
+      "hallazgos_relevantes_sustrato_salud",
+      "hipotesis_conductual_relevante",
+      "preguntas_para_el_veterinario",
+      "apoyo_farmacologico_o_medico_a_valorar",
+      "urgencia",
+    ],
+  },
+};
+
 async function callClaudeTool<T>(
   tool: { name: string; description: string; input_schema: unknown },
   system: string,
@@ -233,6 +345,22 @@ Tu tarea ahora es ÚNICAMENTE actualizar la comprensión del caso, llamando a up
 const SYSTEM_PROMPT_REPORT = `${REASONING_RULES}
 
 Tu tarea ahora es ÚNICAMENTE redactar el informe profesional completo, llamando a submit_professional_report, a partir de la representación del caso y las hipótesis de trabajo ya construidas (te las paso a continuación). Sigue exactamente la estructura de 12 secciones de la herramienta. Sé concreto y evita relleno: prioriza que cada sección aporte información accionable sobre que sea muy larga.`;
+
+const SYSTEM_PROMPT_FAMILY = `${REASONING_RULES}
+
+Tu tarea ahora es ÚNICAMENTE traducir la formulación e informe profesional ya construidos en un informe PARA LA FAMILIA/TUTOR, llamando a submit_family_report. No es un resumen del informe profesional: es otro producto (§15-19), con objetivo de que la familia entienda qué está pasando, deje de interpretar mal ciertas conductas, sepa exactamente qué NO hacer y qué SÍ hacer, entienda qué se está intentando conseguir, pueda ejecutar los ejercicios, sepa qué observar y pueda reconocer el progreso.
+- Lenguaje claro, cálido, cercano y NUNCA culpabilizador. Nada de jerga técnica (los conceptos técnicos quedan en el informe profesional).
+- Debe ser accionable: al terminar de leerlo, la familia debe saber "mañana, durante el paseo, hago esto".
+- Los ejercicios deben derivarse específicamente de la formulación de ESTE caso — nunca de una lista automática sintoma→ejercicio. Cada ejercicio debe tener un propósito claro y explicable ligado a esa formulación, con instrucciones muy concretas.
+- No reveles automáticamente todo el detalle interno del informe profesional (incertidumbres clínicas, alternativas diagnósticas, dudas del profesional): el profesional decide qué se comparte, así que quédate en lo que la familia necesita para actuar bien y sentirse acompañada.`;
+
+const SYSTEM_PROMPT_VET = `${REASONING_RULES}
+
+Tu tarea ahora es ÚNICAMENTE redactar una nota de derivación/consulta PARA EL VETERINARIO que colabora en este caso, llamando a submit_vet_report. Es una comunicación clínica entre profesionales: concreta, sin jerga innecesaria de conducta, centrada en lo que el veterinario necesita saber y hacer.
+- Nunca prescribas ni afirmes un diagnóstico médico: el equipo de conducta propone hipótesis y pide valoración veterinaria; el veterinario decide.
+- Distingue siempre dato observado de inferencia, especialmente en hallazgos_relevantes_sustrato_salud.
+- Si no hay ningún motivo médico relevante que derivar en este momento, dilo con honestidad en motivo_derivacion (p. ej. "descartar dolor antes de intensificar el trabajo conductual") en vez de inventar uno.
+- apoyo_farmacologico_o_medico_a_valorar son categorías a considerar por el veterinario (p. ej. "valorar manejo del dolor", "descartar causa endocrina"), nunca fármacos o dosis concretas.`;
 
 export interface AnalyzeAnamnesisInput {
   dogName: string;
@@ -317,4 +445,43 @@ export async function analyzeAnamnesis(input: AnalyzeAnamnesisInput): Promise<An
     next_questions: understanding.next_questions,
     report,
   };
+}
+
+export interface GenerateDerivedReportInput {
+  dogName: string;
+  tutorName: string;
+  caseModel: CaseModel;
+  workingHypotheses: WorkingHypothesis[];
+  professionalReport: ProfessionalReport;
+}
+
+function derivedReportContext(input: GenerateDerivedReportInput): string {
+  return [
+    `Caso: perro "${input.dogName}", tutor/familia "${input.tutorName}".`,
+    `Representación del caso por dominios:\n${JSON.stringify(input.caseModel, null, 2)}`,
+    `Hipótesis de trabajo:\n${JSON.stringify(input.workingHypotheses, null, 2)}`,
+    `Informe profesional ya generado (fuente de la que partir, mismo caso, no lo contradigas):\n${JSON.stringify(input.professionalReport, null, 2)}`,
+  ].join("\n\n");
+}
+
+/** Genera el informe para la familia/tutor a partir del informe profesional ya generado. */
+export async function generateFamilyReport(input: GenerateDerivedReportInput): Promise<FamilyReport> {
+  return callClaudeTool<FamilyReport>(
+    FAMILY_REPORT_TOOL,
+    SYSTEM_PROMPT_FAMILY,
+    derivedReportContext(input),
+    8000,
+    "redactar el informe familiar"
+  );
+}
+
+/** Genera la nota de derivación para el veterinario a partir del informe profesional ya generado. */
+export async function generateVetReport(input: GenerateDerivedReportInput): Promise<VetReport> {
+  return callClaudeTool<VetReport>(
+    VET_REPORT_TOOL,
+    SYSTEM_PROMPT_VET,
+    derivedReportContext(input),
+    4000,
+    "redactar la nota para el veterinario"
+  );
 }

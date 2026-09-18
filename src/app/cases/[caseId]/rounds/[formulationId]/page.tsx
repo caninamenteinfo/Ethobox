@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getProfessionalUser } from "@/lib/auth";
-import { getCaseById, getFormulationById, listEntries } from "@/lib/cases";
+import { getCaseById, getFormulationById, listEntries, listFormulations } from "@/lib/cases";
 import { TopBar } from "@/components/TopBar";
 import { RoundWorkspace } from "@/components/RoundWorkspace";
 
@@ -20,7 +20,7 @@ export default async function RoundPage({
   const formulation = await getFormulationById(formulationId, caseId);
   if (!formulation) notFound();
 
-  const entries = await listEntries(formulationId);
+  const [entries, allRounds] = await Promise.all([listEntries(formulationId), listFormulations(caseId)]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -30,7 +30,7 @@ export default async function RoundPage({
           ← Historial de rondas
         </Link>
         <div className="mt-4">
-          <RoundWorkspace theCase={theCase} initialFormulation={formulation} initialEntries={entries} />
+          <RoundWorkspace theCase={theCase} initialFormulation={formulation} initialEntries={entries} allRounds={allRounds} />
         </div>
       </main>
     </div>

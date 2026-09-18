@@ -93,6 +93,41 @@ export interface ProfessionalReport {
   criterios_reevaluacion: CriteriosReevaluacion;
 }
 
+/** Cada ejercicio del informe familiar, siempre derivado de la formulación de ese caso (§17-18). */
+export interface FamilyExercise {
+  nombre: string;
+  para_que_sirve: string;
+  donde: string;
+  cuando: string;
+  como: string;
+  cuando_premiar: string;
+  que_observar: string;
+  cuando_detenerse: string;
+  como_saber_si_es_demasiado_dificil: string;
+  como_progresar: string;
+}
+
+/** Informe para la familia/tutor — otro producto, no un resumen del profesional (§15-19). */
+export interface FamilyReport {
+  entender_que_le_esta_pasando: string;
+  que_creemos_que_esta_ocurriendo: string;
+  lo_que_no_vamos_a_hacer: string[];
+  lo_que_si_vamos_a_hacer: string[];
+  primer_objetivo: string;
+  ejercicios: FamilyExercise[];
+}
+
+/** Informe/nota de derivación para el veterinario que colabora en el caso. */
+export interface VetReport {
+  motivo_derivacion: string;
+  resumen_caso: string;
+  hallazgos_relevantes_sustrato_salud: string;
+  hipotesis_conductual_relevante: string;
+  preguntas_para_el_veterinario: string[];
+  apoyo_farmacologico_o_medico_a_valorar: string[];
+  urgencia: string;
+}
+
 export type FormulationStatus = "gathering" | "ready" | "closed";
 
 export interface Formulation {
@@ -106,6 +141,8 @@ export interface Formulation {
   sufficiency: Sufficiency | Record<string, never>;
   next_questions: string[];
   report: ProfessionalReport | null;
+  family_report: FamilyReport | null;
+  vet_report: VetReport | null;
   created_at: string;
   updated_at: string;
   closed_at: string | null;

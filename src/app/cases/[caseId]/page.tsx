@@ -3,6 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { getProfessionalUser } from "@/lib/auth";
 import { getCaseById, listFormulations } from "@/lib/cases";
 import { TopBar } from "@/components/TopBar";
+import { DeleteCaseButton } from "@/components/DeleteCaseButton";
 
 const STATUS_LABEL: Record<string, string> = {
   gathering: "Recogiendo información",
@@ -15,6 +16,10 @@ const STATUS_COLOR: Record<string, string> = {
   ready: "bg-teal-100 text-teal-800",
   closed: "bg-slate-200 text-slate-700",
 };
+
+function ordinal(n: number): string {
+  return `${n}ª`;
+}
 
 export default async function CaseDetailPage({
   params,
@@ -34,18 +39,21 @@ export default async function CaseDetailPage({
     <div className="flex flex-1 flex-col">
       <TopBar subtitle={theCase.dog_name} />
       <main className="flex-1 max-w-3xl w-full mx-auto px-6 py-8 space-y-6">
-        <div>
-          <Link href="/cases" className="text-sm text-teal-700">
-            ← Todos los casos
-          </Link>
-          <h1 className="text-xl font-heading font-semibold text-slate-900 mt-2">{theCase.dog_name}</h1>
-          <p className="text-sm text-slate-500">{theCase.tutor_name || "Sin tutor registrado"}</p>
-          {theCase.notes && <p className="text-sm text-slate-600 mt-2">{theCase.notes}</p>}
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <Link href="/cases" className="text-sm text-teal-700">
+              ← Todos los casos
+            </Link>
+            <h1 className="text-xl font-heading font-semibold text-slate-900 mt-2">{theCase.dog_name}</h1>
+            <p className="text-sm text-slate-500">{theCase.tutor_name || "Sin tutor registrado"}</p>
+            {theCase.notes && <p className="text-sm text-slate-600 mt-2">{theCase.notes}</p>}
+          </div>
+          <DeleteCaseButton caseId={caseId} dogName={theCase.dog_name} />
         </div>
 
         <div>
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-2">
-            Rondas de anamnesis / formulación
+            Anamnesis de este caso ({rounds.length})
           </h2>
           <ul className="divide-y divide-slate-200 bg-white rounded-2xl border border-slate-200">
             {rounds.map((r) => (
@@ -54,8 +62,29 @@ export default async function CaseDetailPage({
                   href={`/cases/${caseId}/rounds/${r.id}`}
                   className="flex items-center justify-between px-5 py-4 hover:bg-slate-50"
                 >
-                  <span className="font-medium text-slate-900">Ronda {r.round_number}</span>
-                  <span className={`text-xs px-2.5 py-1 rounded-full ${STATUS_COLOR[r.status]}`}>
+                  <div>
+                    <span className="font-medium text-slate-900">
+                      {ordinal(r.round_number)} anamnesis
+                    </span>
+                    <div className="flex gap-1.5 mt-1">
+                      {r.report && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-50 text-teal-700">
+                          informe profesional
+                        </span>
+                      )}
+                      {r.family_report && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                          informe familiar
+                        </span>
+                      )}
+                      {r.vet_report && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-50 text-sky-700">
+                          nota veterinaria
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${STATUS_COLOR[r.status]}`}>
                     {STATUS_LABEL[r.status]}
                   </span>
                 </Link>

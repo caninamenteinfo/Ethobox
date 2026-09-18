@@ -1,10 +1,18 @@
 import "server-only";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import type { AnamnesisEntry, Case, CaseModel, Formulation, WorkingHypothesis } from "@/types";
+import type {
+  AnamnesisEntry,
+  Case,
+  CaseModel,
+  FamilyReport,
+  Formulation,
+  VetReport,
+  WorkingHypothesis,
+} from "@/types";
 
 const CASE_COLUMNS = "id, professional_id, dog_name, tutor_name, notes, status, created_at, updated_at";
 const FORMULATION_COLUMNS =
-  "id, case_id, round_number, previous_formulation_id, status, case_model, working_hypotheses, sufficiency, next_questions, report, created_at, updated_at, closed_at";
+  "id, case_id, round_number, previous_formulation_id, status, case_model, working_hypotheses, sufficiency, next_questions, report, family_report, vet_report, created_at, updated_at, closed_at";
 const ENTRY_COLUMNS = "id, formulation_id, case_id, raw_text, created_at";
 
 export async function listCasesForProfessional(professionalId: string): Promise<Case[]> {
@@ -187,4 +195,39 @@ export async function startNewRound(fields: {
     .single();
   if (error || !data) throw new Error(error?.message || "No se ha podido abrir la nueva ronda.");
   return data as Formulation;
+}
+
+export async function saveFamilyReport(formulationId: string, familyReport: FamilyReport): Promise<Formulation> {
+  const admin = supabaseAdmin();
+  const { data, error } = await admin
+    .from("ethobox_formulations")
+    .update({ family_report: familyReport, updated_at: new Date().toISOString() })
+    .eq("id", formulationId)
+    .select(FORMULATION_COLUMNS)
+    .single();
+  if (error || !data) throw new Error(error?.message || "No se ha podido guardar el informe familiar.");
+  return data as Formulation;
+}
+
+export async function saveVetReport(formulationId: string, vetReport: VetReport): Promise<Formulation> {
+  const admin = supabaseAdmin();
+  const { data, error } = await admin
+    .from("ethobox_formulations")
+    .update({ vet_report: vetReport, updated_at: new Date().toISOString() })
+    .eq("id", formulationId)
+    .select(FORMULATION_COLUMNS)
+    .single();
+  if (error || !data) throw new Error(error?.message || "No se ha podido guardar el informe veterinario.");
+  return data as Formulation;
+}
+
+export async function deleteCase(caseId: string, professionalId: string): Promise<void> {
+  const admin = supabaseAdmin();
+  const { error, count } = await admin
+    .from("ethobox_cases")
+    .delete({ count: "exact" })
+    .eq("id", caseId)
+    .eq("professional_id", professionalId);
+  if (error) throw new Error(error.message);
+  if (!count) throw new Error("Caso no encontrado.");
 }
