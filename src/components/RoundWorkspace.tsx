@@ -26,19 +26,41 @@ export function RoundWorkspace({
   const [formulation, setFormulation] = useState(initialFormulation);
   const [entries, setEntries] = useState(initialEntries);
   const [draft, setDraft] = useState("");
+  const [answers, setAnswers] = useState<string[]>(() => (initialFormulation.next_questions || []).map(() => ""));
   const [busy, setBusy] = useState<null | "analyze" | "force" | "close" | "newRound">(null);
   const [error, setError] = useState<string | null>(null);
 
   const base = `/api/cases/${theCase.id}/formulations/${formulation.id}`;
 
+  const setAnswer = (index: number, value: string) => {
+    setAnswers((prev) => {
+      const next = [...prev];
+      next[index] = value;
+      return next;
+    });
+  };
+
+  const composeRawText = () => {
+    const parts: string[] = [];
+    (formulation.next_questions || []).forEach((q, i) => {
+      const a = answers[i]?.trim();
+      if (a) parts.push(`Pregunta: ${q}\nRespuesta: ${a}`);
+    });
+    if (draft.trim()) parts.push(draft.trim());
+    return parts.join("\n\n");
+  };
+
+  const hasSomethingToAnalyze = composeRawText().length > 0;
+
   const analyze = async () => {
-    if (!draft.trim() || busy) return;
+    const rawText = composeRawText();
+    if (!rawText || busy) return;
     setBusy("analyze");
     setError(null);
     const res = await fetch(`${base}/entries`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rawText: draft }),
+      body: JSON.stringify({ rawText }),
     });
     const data = await res.json().catch(() => null);
     setBusy(null);
@@ -49,6 +71,7 @@ export function RoundWorkspace({
     setFormulation(data.formulation);
     setEntries(data.entries);
     setDraft("");
+    setAnswers((data.formulation.next_questions || []).map(() => ""));
   };
 
   const forceReport = async () => {
@@ -142,37 +165,50 @@ export function RoundWorkspace({
               ))}
             </div>
 
-            {formulation.status !== "closed" && (
-              <>
-                <textarea
-                  value={draft}
-                  onChange={(ev) => setDraft(ev.target.value)}
-                  rows={4}
-                  placeholder="Escribe o pega la información recogida…"
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-600"
-                />
-                <button
-                  onClick={analyze}
-                  disabled={!draft.trim() || busy !== null}
-                  className="mt-2 flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium disabled:opacity-50"
-                >
-                  {busy === "analyze" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                  Analizar
-                </button>
-              </>
-            )}
           </div>
 
-          {formulation.next_questions?.length > 0 && (
+          {formulation.status !== "closed" && formulation.next_questions?.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 p-5">
               <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
                 Preguntas sugeridas (mayor valor diferencial)
               </h2>
-              <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
+              <div className="space-y-4">
                 {formulation.next_questions.map((q, i) => (
-                  <li key={i}>{q}</li>
+                  <div key={i}>
+                    <p className="text-sm text-slate-800 font-medium mb-1">{q}</p>
+                    <textarea
+                      value={answers[i] || ""}
+                      onChange={(ev) => setAnswer(i, ev.target.value)}
+                      rows={2}
+                      placeholder="Qué te ha contado el tutor (o tu impresión)…"
+                      className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-600"
+                    />
+                  </div>
                 ))}
-              </ul>
+              </div>
+            </div>
+          )}
+
+          {formulation.status !== "closed" && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-5">
+              <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+                Otras notas u observaciones
+              </h2>
+              <textarea
+                value={draft}
+                onChange={(ev) => setDraft(ev.target.value)}
+                rows={4}
+                placeholder="Cualquier otra información, no ligada a una pregunta concreta…"
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-teal-600"
+              />
+              <button
+                onClick={analyze}
+                disabled={!hasSomethingToAnalyze || busy !== null}
+                className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium disabled:opacity-50"
+              >
+                {busy === "analyze" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                Analizar
+              </button>
             </div>
           )}
         </div>
