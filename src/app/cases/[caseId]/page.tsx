@@ -4,6 +4,7 @@ import { getProfessionalUser } from "@/lib/auth";
 import { getCaseById, listFormulations } from "@/lib/cases";
 import { TopBar } from "@/components/TopBar";
 import { DeleteCaseButton } from "@/components/DeleteCaseButton";
+import { ArchiveCaseButton } from "@/components/ArchiveCaseButton";
 
 const STATUS_LABEL: Record<string, string> = {
   gathering: "Recogiendo información",
@@ -47,8 +48,16 @@ export default async function CaseDetailPage({
             <h1 className="text-xl font-heading font-semibold text-slate-900 mt-2">{theCase.dog_name}</h1>
             <p className="text-sm text-slate-500">{theCase.tutor_name || "Sin tutor registrado"}</p>
             {theCase.notes && <p className="text-sm text-slate-600 mt-2">{theCase.notes}</p>}
+            {theCase.status === "archived" && (
+              <span className="inline-block mt-2 text-xs px-2.5 py-1 rounded-full bg-slate-200 text-slate-700">
+                Archivado
+              </span>
+            )}
           </div>
-          <DeleteCaseButton caseId={caseId} dogName={theCase.dog_name} />
+          <div className="flex flex-col items-end gap-3">
+            <ArchiveCaseButton caseId={caseId} status={theCase.status} />
+            <DeleteCaseButton caseId={caseId} dogName={theCase.dog_name} />
+          </div>
         </div>
 
         <div>

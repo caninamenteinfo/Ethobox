@@ -3,6 +3,9 @@ import { loadAuthorizedFormulation, isErrorContext } from "@/lib/guard";
 import { listEntries, updateFormulationAnalysis } from "@/lib/cases";
 import { analyzeAnamnesis } from "@/lib/claude";
 
+// Las llamadas a la IA pueden tardar más de los 10s por defecto de Vercel.
+export const maxDuration = 60;
+
 /** El profesional fuerza la generación del informe aunque la IA no lo considere aún suficiente. */
 export async function POST(
   _req: Request,

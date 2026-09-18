@@ -221,6 +221,23 @@ export async function saveVetReport(formulationId: string, vetReport: VetReport)
   return data as Formulation;
 }
 
+export async function setCaseStatus(
+  caseId: string,
+  professionalId: string,
+  status: "active" | "archived"
+): Promise<Case> {
+  const admin = supabaseAdmin();
+  const { data, error } = await admin
+    .from("ethobox_cases")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", caseId)
+    .eq("professional_id", professionalId)
+    .select(CASE_COLUMNS)
+    .single();
+  if (error || !data) throw new Error(error?.message || "No se ha podido actualizar el caso.");
+  return data as Case;
+}
+
 export async function deleteCase(caseId: string, professionalId: string): Promise<void> {
   const admin = supabaseAdmin();
   const { error, count } = await admin

@@ -3,6 +3,9 @@ import { loadAuthorizedFormulation, isErrorContext } from "@/lib/guard";
 import { saveVetReport } from "@/lib/cases";
 import { generateVetReport } from "@/lib/claude";
 
+// Las llamadas a la IA pueden tardar más de los 10s por defecto de Vercel.
+export const maxDuration = 60;
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ caseId: string; formulationId: string }> }
