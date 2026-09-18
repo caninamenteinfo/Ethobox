@@ -144,12 +144,21 @@ export async function analyzeAnamnesis(input: AnalyzeAnamnesisInput): Promise<An
   const reply = await callClaude(
     [{ role: "user", content: contextParts.join("\n\n") }],
     SYSTEM_PROMPT,
-    4000
+    8000
   );
 
-  const parsed = extractJson(reply) as AnalysisResult;
+  let parsed: AnalysisResult;
+  try {
+    parsed = extractJson(reply) as AnalysisResult;
+  } catch (err) {
+    throw new Error(
+      `No se ha podido interpretar la respuesta del modelo como JSON (posiblemente se cortó por longitud). Detalle: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
   if (!parsed.case_model || !parsed.sufficiency) {
-    throw new Error("Respuesta del modelo con formato inesperado.");
+    throw new Error("Respuesta del modelo con formato inesperado (faltan campos obligatorios).");
   }
   return parsed;
 }

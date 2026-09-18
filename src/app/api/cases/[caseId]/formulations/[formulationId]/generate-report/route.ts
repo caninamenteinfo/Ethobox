@@ -54,6 +54,7 @@ export async function POST(
     return NextResponse.json({ formulation: updated });
   } catch (err) {
     console.error("generate report error", err);
-    return NextResponse.json({ error: "Error al generar el informe." }, { status: 502 });
+    const detail = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Error al generar el informe: ${detail}` }, { status: 502 });
   }
 }

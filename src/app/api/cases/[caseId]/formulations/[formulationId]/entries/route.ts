@@ -57,6 +57,7 @@ export async function POST(
     return NextResponse.json({ formulation: updated, entries });
   } catch (err) {
     console.error("analyze entry error", err);
-    return NextResponse.json({ error: "Error al analizar la anamnesis." }, { status: 502 });
+    const detail = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Error al analizar la anamnesis: ${detail}` }, { status: 502 });
   }
 }
