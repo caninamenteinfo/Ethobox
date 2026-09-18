@@ -5,6 +5,8 @@ import { getCaseById, getFormulationById, listEntries, listFormulations } from "
 import { TopBar } from "@/components/TopBar";
 import { RoundWorkspace } from "@/components/RoundWorkspace";
 
+export const maxDuration = 30;
+
 export default async function RoundPage({
   params,
 }: {

@@ -1,11 +1,13 @@
+import { asArray } from "@/lib/safe-array";
 import type { VetReport } from "@/types";
 
-function List({ items }: { items: string[] }) {
-  if (!items?.length) return <p className="text-sm text-slate-400">—</p>;
+function List({ items }: { items: unknown }) {
+  const safe = asArray(items);
+  if (!safe.length) return <p className="text-sm text-slate-400">—</p>;
   return (
     <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
-      {items.map((it, i) => (
-        <li key={i}>{it}</li>
+      {safe.map((it, i) => (
+        <li key={i}>{String(it)}</li>
       ))}
     </ul>
   );

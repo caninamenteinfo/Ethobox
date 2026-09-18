@@ -1,4 +1,5 @@
 import { DOMAIN_KEYS, DOMAIN_LABELS } from "@/lib/domains";
+import { asArray } from "@/lib/safe-array";
 import type { CaseModel, WorkingHypothesis } from "@/types";
 
 export function DomainPanel({
@@ -8,7 +9,8 @@ export function DomainPanel({
   caseModel: CaseModel;
   hypotheses: WorkingHypothesis[];
 }) {
-  const exploredDomains = DOMAIN_KEYS.filter((k) => (caseModel[k] || "").trim().length > 0);
+  const exploredDomains = DOMAIN_KEYS.filter((k) => (caseModel?.[k] || "").trim().length > 0);
+  const safeHypotheses = asArray<WorkingHypothesis>(hypotheses);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-5">
@@ -32,35 +34,40 @@ export function DomainPanel({
         )}
       </div>
 
-      {hypotheses.length > 0 && (
+      {safeHypotheses.length > 0 && (
         <div className="border-t border-slate-100 pt-4">
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
             Hipótesis de trabajo
           </h2>
           <ul className="space-y-3">
-            {hypotheses.map((h, i) => (
-              <li key={i} className="text-sm">
-                <p className="font-medium text-slate-900">Los datos son compatibles con: {h.hypothesis}</p>
-                {h.supporting_evidence.length > 0 && (
-                  <p className="text-slate-600 mt-1">
-                    <span className="text-emerald-700 font-medium">A favor: </span>
-                    {h.supporting_evidence.join("; ")}
-                  </p>
-                )}
-                {h.contradicting_evidence.length > 0 && (
-                  <p className="text-slate-600">
-                    <span className="text-amber-700 font-medium">En contra: </span>
-                    {h.contradicting_evidence.join("; ")}
-                  </p>
-                )}
-                {h.alternatives.length > 0 && (
-                  <p className="text-slate-500">
-                    <span className="font-medium">Alternativas: </span>
-                    {h.alternatives.join("; ")}
-                  </p>
-                )}
-              </li>
-            ))}
+            {safeHypotheses.map((h, i) => {
+              const supporting = asArray(h?.supporting_evidence);
+              const contradicting = asArray(h?.contradicting_evidence);
+              const alternatives = asArray(h?.alternatives);
+              return (
+                <li key={i} className="text-sm">
+                  <p className="font-medium text-slate-900">Los datos son compatibles con: {h?.hypothesis}</p>
+                  {supporting.length > 0 && (
+                    <p className="text-slate-600 mt-1">
+                      <span className="text-emerald-700 font-medium">A favor: </span>
+                      {supporting.join("; ")}
+                    </p>
+                  )}
+                  {contradicting.length > 0 && (
+                    <p className="text-slate-600">
+                      <span className="text-amber-700 font-medium">En contra: </span>
+                      {contradicting.join("; ")}
+                    </p>
+                  )}
+                  {alternatives.length > 0 && (
+                    <p className="text-slate-500">
+                      <span className="font-medium">Alternativas: </span>
+                      {alternatives.join("; ")}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

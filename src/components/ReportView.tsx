@@ -1,4 +1,5 @@
-import type { ProfessionalReport } from "@/types";
+import { asArray } from "@/lib/safe-array";
+import type { ApoyoComplementario, ProfessionalReport } from "@/types";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -9,19 +10,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function List({ items }: { items: string[] }) {
-  if (!items?.length) return <p className="text-sm text-slate-400">—</p>;
+function List({ items }: { items: unknown }) {
+  const safe = asArray(items);
+  if (!safe.length) return <p className="text-sm text-slate-400">—</p>;
   return (
     <ul className="list-disc list-inside text-sm text-slate-700 space-y-1">
-      {items.map((it, i) => (
-        <li key={i}>{it}</li>
+      {safe.map((it, i) => (
+        <li key={i}>{String(it)}</li>
       ))}
     </ul>
   );
 }
 
 export function ReportView({ report }: { report: ProfessionalReport }) {
-  const qr = report.lectura_rapida;
+  const qr = report.lectura_rapida || ({} as ProfessionalReport["lectura_rapida"]);
+  const formulacion = report.formulacion_hipotesis || ({} as ProfessionalReport["formulacion_hipotesis"]);
+  const factores = report.factores_a_modificar || ({} as ProfessionalReport["factores_a_modificar"]);
+  const estrategia = report.estrategia_inicial || ({} as ProfessionalReport["estrategia_inicial"]);
+  const criterios = report.criterios_reevaluacion || ({} as ProfessionalReport["criterios_reevaluacion"]);
+  const apoyos = asArray<ApoyoComplementario>(report.apoyos_complementarios);
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
       <h2 className="text-lg font-heading font-semibold text-slate-900">Informe profesional</h2>
@@ -74,27 +81,25 @@ export function ReportView({ report }: { report: ProfessionalReport }) {
       </Section>
 
       <Section title="7. Formulación e hipótesis">
-        <p className="text-sm text-slate-900 font-medium mb-2">
-          {report.formulacion_hipotesis.hipotesis_principal}
-        </p>
+        <p className="text-sm text-slate-900 font-medium mb-2">{formulacion.hipotesis_principal}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <p className="text-xs font-semibold text-emerald-700 mb-1">Evidencias a favor</p>
-            <List items={report.formulacion_hipotesis.evidencias} />
+            <List items={formulacion.evidencias} />
           </div>
           <div>
             <p className="text-xs font-semibold text-amber-700 mb-1">Contradicciones</p>
-            <List items={report.formulacion_hipotesis.contradicciones} />
+            <List items={formulacion.contradicciones} />
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-1">Alternativas</p>
-            <List items={report.formulacion_hipotesis.alternativas} />
+            <List items={formulacion.alternativas} />
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-1">
               Incertidumbres (a observar durante la intervención)
             </p>
-            <List items={report.formulacion_hipotesis.incertidumbres} />
+            <List items={formulacion.incertidumbres} />
           </div>
         </div>
       </Section>
@@ -103,11 +108,11 @@ export function ReportView({ report }: { report: ProfessionalReport }) {
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           {(
             [
-              ["Perro", report.factores_a_modificar.perro],
-              ["Umwelt", report.factores_a_modificar.umwelt],
-              ["Tutor", report.factores_a_modificar.tutor],
-              ["Interacción", report.factores_a_modificar.interaccion],
-              ["Contexto", report.factores_a_modificar.contexto],
+              ["Perro", factores.perro],
+              ["Umwelt", factores.umwelt],
+              ["Tutor", factores.tutor],
+              ["Interacción", factores.interaccion],
+              ["Contexto", factores.contexto],
             ] as const
           ).map(([label, value]) => (
             <div key={label}>
@@ -122,35 +127,35 @@ export function ReportView({ report }: { report: ProfessionalReport }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-1">Objetivos</p>
-            <List items={report.estrategia_inicial.objetivos} />
+            <List items={estrategia.objetivos} />
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-1">Prioridades</p>
-            <List items={report.estrategia_inicial.prioridades} />
+            <List items={estrategia.prioridades} />
           </div>
           <div>
             <p className="text-xs font-semibold text-slate-600 mb-1">Orden de intervención</p>
-            <List items={report.estrategia_inicial.orden_intervencion} />
+            <List items={estrategia.orden_intervencion} />
           </div>
           <div>
             <p className="text-xs font-semibold text-red-700 mb-1">Qué evitar</p>
-            <List items={report.estrategia_inicial.que_evitar} />
+            <List items={estrategia.que_evitar} />
           </div>
           <div className="sm:col-span-2">
             <p className="text-xs font-semibold text-slate-600 mb-1">Herramientas propuestas</p>
-            <List items={report.estrategia_inicial.herramientas_propuestas} />
+            <List items={estrategia.herramientas_propuestas} />
           </div>
         </div>
       </Section>
 
-      {report.apoyos_complementarios?.length > 0 && (
+      {apoyos.length > 0 && (
         <Section title="10. Apoyos complementarios">
           <ul className="space-y-2 text-sm">
-            {report.apoyos_complementarios.map((a, i) => (
+            {apoyos.map((a, i) => (
               <li key={i} className="border border-slate-100 rounded-lg p-2.5">
-                <p className="font-medium text-slate-900">{a.item}</p>
-                <p className="text-slate-600">Nivel de evidencia: {a.nivel_evidencia}</p>
-                <p className="text-slate-600">Precauciones: {a.precauciones}</p>
+                <p className="font-medium text-slate-900">{a?.item}</p>
+                <p className="text-slate-600">Nivel de evidencia: {a?.nivel_evidencia}</p>
+                <p className="text-slate-600">Precauciones: {a?.precauciones}</p>
               </li>
             ))}
           </ul>
@@ -165,19 +170,19 @@ export function ReportView({ report }: { report: ProfessionalReport }) {
         <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div>
             <dt className="text-slate-500">Mantener</dt>
-            <dd className="text-slate-800">{report.criterios_reevaluacion.mantener}</dd>
+            <dd className="text-slate-800">{criterios.mantener}</dd>
           </div>
           <div>
             <dt className="text-slate-500">Progresar</dt>
-            <dd className="text-slate-800">{report.criterios_reevaluacion.progresar}</dd>
+            <dd className="text-slate-800">{criterios.progresar}</dd>
           </div>
           <div>
             <dt className="text-slate-500">Retroceder</dt>
-            <dd className="text-slate-800">{report.criterios_reevaluacion.retroceder}</dd>
+            <dd className="text-slate-800">{criterios.retroceder}</dd>
           </div>
           <div>
             <dt className="text-slate-500">Reformular</dt>
-            <dd className="text-slate-800">{report.criterios_reevaluacion.reformular}</dd>
+            <dd className="text-slate-800">{criterios.reformular}</dd>
           </div>
         </dl>
       </Section>
