@@ -23,13 +23,18 @@ export async function POST(
 
   const body = await req.json().catch(() => null);
   const rawText = typeof body?.rawText === "string" ? body.rawText.trim() : "";
-  if (!rawText) {
-    return NextResponse.json({ error: "El texto de la entrada no puede estar vacío." }, { status: 400 });
-  }
 
   try {
-    await addEntry({ formulationId, caseId, rawText });
-    const entries = await listEntries(formulationId);
+    let entries = await listEntries(formulationId);
+    if (rawText) {
+      await addEntry({ formulationId, caseId, rawText });
+      entries = await listEntries(formulationId);
+    } else if (entries.length === 0) {
+      // Sin texto nuevo y sin entradas previas: no hay nada que (re)analizar.
+      return NextResponse.json({ error: "El texto de la entrada no puede estar vacío." }, { status: 400 });
+    }
+    // rawText vacío + entradas ya existentes = reintento: reanaliza lo ya
+    // guardado sin duplicar ninguna entrada.
 
     const result = await analyzeAnamnesis({
       dogName: theCase.dog_name,

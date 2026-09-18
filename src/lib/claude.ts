@@ -279,7 +279,7 @@ export async function analyzeAnamnesis(input: AnalyzeAnamnesisInput): Promise<An
     UNDERSTANDING_TOOL,
     SYSTEM_PROMPT_UNDERSTANDING,
     understandingContent,
-    4000,
+    6000,
     "actualizar la comprensión del caso"
   );
 

@@ -52,9 +52,14 @@ export function RoundWorkspace({
 
   const hasSomethingToAnalyze = composeRawText().length > 0;
 
-  const analyze = async () => {
-    const rawText = composeRawText();
-    if (!rawText || busy) return;
+  // rawText === undefined -> envío normal (compone preguntas+notas).
+  // rawText === "" -> reintento: no añade ninguna entrada nueva, solo
+  // vuelve a analizar lo que ya está guardado (evita duplicar texto si
+  // el paso anterior falló después de guardar la entrada).
+  const runAnalyze = async (rawTextOverride?: string) => {
+    if (busy) return;
+    const rawText = rawTextOverride ?? composeRawText();
+    if (rawTextOverride === undefined && !rawText) return;
     setBusy("analyze");
     setError(null);
     const res = await fetch(`${base}/entries`, {
@@ -66,6 +71,10 @@ export function RoundWorkspace({
     setBusy(null);
     if (!res.ok) {
       setError(data?.error || "Error al analizar.");
+      // El texto ya quedó guardado como entrada antes de fallar: se
+      // limpian las cajas para no reenviarlo duplicado al reintentar.
+      setDraft("");
+      setAnswers((formulation.next_questions || []).map(() => ""));
       return;
     }
     setFormulation(data.formulation);
@@ -73,6 +82,9 @@ export function RoundWorkspace({
     setDraft("");
     setAnswers((data.formulation.next_questions || []).map(() => ""));
   };
+
+  const analyze = () => runAnalyze();
+  const retryAnalyze = () => runAnalyze("");
 
   const forceReport = async () => {
     if (busy) return;
@@ -216,7 +228,21 @@ export function RoundWorkspace({
         <DomainPanel caseModel={formulation.case_model} hypotheses={formulation.working_hypotheses || []} />
       </div>
 
-      {error && <p className="text-red-600 text-sm">{error}</p>}
+      {error && (
+        <div className="flex items-center gap-3">
+          <p className="text-red-600 text-sm">{error}</p>
+          {formulation.status !== "closed" && entries.length > 0 && (
+            <button
+              onClick={retryAnalyze}
+              disabled={busy !== null}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-red-300 text-red-700 text-xs font-medium disabled:opacity-50"
+            >
+              {busy === "analyze" ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+              Reintentar análisis
+            </button>
+          )}
+        </div>
+      )}
 
       {formulation.status !== "closed" && (
         <div className="flex flex-wrap gap-3">
