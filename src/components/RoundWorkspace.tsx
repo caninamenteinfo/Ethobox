@@ -63,6 +63,29 @@ export function RoundWorkspace({
 
   const hasSomethingToAnalyze = composeRawText().length > 0;
 
+  // Envuelve el fetch para que un fallo de red (no solo un error HTTP)
+  // también se muestre como mensaje, en vez de dejar el botón colgado
+  // sin decir nada.
+  const postJson = async (
+    url: string,
+    body?: unknown
+  ): Promise<{ ok: boolean; data: Record<string, unknown> | null }> => {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      const data = await res.json().catch(() => null);
+      return { ok: res.ok, data };
+    } catch {
+      return {
+        ok: false,
+        data: { error: "Error de conexión. Comprueba tu conexión a internet e inténtalo de nuevo." },
+      };
+    }
+  };
+
   // rawText === undefined -> envío normal (compone preguntas+notas).
   // rawText === "" -> reintento: no añade ninguna entrada nueva, solo
   // vuelve a analizar lo que ya está guardado (evita duplicar texto si
@@ -73,25 +96,20 @@ export function RoundWorkspace({
     if (rawTextOverride === undefined && !rawText) return;
     setBusy("analyze");
     setError(null);
-    const res = await fetch(`${base}/entries`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rawText }),
-    });
-    const data = await res.json().catch(() => null);
+    const { ok, data } = await postJson(`${base}/entries`, { rawText });
     setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Error al analizar.");
+    if (!ok) {
+      setError((data?.error as string) || "Error al analizar.");
       // El texto ya quedó guardado como entrada antes de fallar: se
       // limpian las cajas para no reenviarlo duplicado al reintentar.
       setDraft("");
       setAnswers((formulation.next_questions || []).map(() => ""));
       return;
     }
-    setFormulation(data.formulation);
-    setEntries(data.entries);
+    setFormulation(data!.formulation as Formulation);
+    setEntries(data!.entries as AnamnesisEntry[]);
     setDraft("");
-    setAnswers((data.formulation.next_questions || []).map(() => ""));
+    setAnswers(((data!.formulation as Formulation).next_questions || []).map(() => ""));
   };
 
   const analyze = () => runAnalyze();
@@ -101,70 +119,65 @@ export function RoundWorkspace({
     if (busy) return;
     setBusy("force");
     setError(null);
-    const res = await fetch(`${base}/generate-report`, { method: "POST" });
-    const data = await res.json().catch(() => null);
+    const { ok, data } = await postJson(`${base}/generate-report`);
     setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Error al generar el informe.");
+    if (!ok) {
+      setError((data?.error as string) || "Error al generar el informe.");
       return;
     }
-    setFormulation(data.formulation);
+    setFormulation(data!.formulation as Formulation);
   };
 
   const close = async () => {
     if (busy) return;
     setBusy("close");
     setError(null);
-    const res = await fetch(`${base}/close`, { method: "POST" });
-    const data = await res.json().catch(() => null);
+    const { ok, data } = await postJson(`${base}/close`);
     setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Error al cerrar la ronda.");
+    if (!ok) {
+      setError((data?.error as string) || "Error al cerrar la ronda.");
       return;
     }
-    setFormulation(data.formulation);
+    setFormulation(data!.formulation as Formulation);
   };
 
   const generateFamily = async () => {
     if (busy) return;
     setBusy("family");
     setError(null);
-    const res = await fetch(`${base}/generate-family-report`, { method: "POST" });
-    const data = await res.json().catch(() => null);
+    const { ok, data } = await postJson(`${base}/generate-family-report`);
     setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Error al generar el informe familiar.");
+    if (!ok) {
+      setError((data?.error as string) || "Error al generar el informe familiar.");
       return;
     }
-    setFormulation(data.formulation);
+    setFormulation(data!.formulation as Formulation);
   };
 
   const generateVet = async () => {
     if (busy) return;
     setBusy("vet");
     setError(null);
-    const res = await fetch(`${base}/generate-vet-report`, { method: "POST" });
-    const data = await res.json().catch(() => null);
+    const { ok, data } = await postJson(`${base}/generate-vet-report`);
     setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Error al generar la nota para el veterinario.");
+    if (!ok) {
+      setError((data?.error as string) || "Error al generar la nota para el veterinario.");
       return;
     }
-    setFormulation(data.formulation);
+    setFormulation(data!.formulation as Formulation);
   };
 
   const newRound = async () => {
     if (busy) return;
     setBusy("newRound");
     setError(null);
-    const res = await fetch(`${base}/new-round`, { method: "POST" });
-    const data = await res.json().catch(() => null);
+    const { ok, data } = await postJson(`${base}/new-round`);
     setBusy(null);
-    if (!res.ok) {
-      setError(data?.error || "Error al abrir la nueva ronda.");
+    if (!ok) {
+      setError((data?.error as string) || "Error al abrir la nueva ronda.");
       return;
     }
-    router.push(`/cases/${theCase.id}/rounds/${data.formulation.id}`);
+    router.push(`/cases/${theCase.id}/rounds/${(data!.formulation as Formulation).id}`);
   };
 
   const sufficiency = "is_sufficient" in formulation.sufficiency ? formulation.sufficiency : null;

@@ -415,7 +415,13 @@ export async function analyzeAnamnesis(input: AnalyzeAnamnesisInput): Promise<An
     throw new Error("Respuesta del modelo con formato inesperado (faltan campos obligatorios).");
   }
 
-  const shouldGenerateReport = input.forceReport || understanding.sufficiency.is_sufficient;
+  // El informe SOLO se genera cuando el profesional lo pide explícitamente
+  // (forceReport), nunca automáticamente aunque la IA considere que ya hay
+  // suficiente información. Encadenar las dos llamadas a la IA en la misma
+  // petición alargaba demasiado "Analizar" y arriesgaba timeouts; ahora
+  // "Analizar" siempre hace solo el paso de comprensión, y generar el
+  // informe es siempre una acción aparte ("Generar informe ahora").
+  const shouldGenerateReport = input.forceReport;
   let report: ProfessionalReport | null = null;
 
   if (shouldGenerateReport) {
