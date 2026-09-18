@@ -25,6 +25,10 @@ Next.js 16 (App Router) + Supabase (Auth + Postgres) + Anthropic API. Mismo patr
 4. Copia `.env.example` a `.env.local` y rellena las claves de Supabase (Project Settings → API) y tu `ANTHROPIC_API_KEY`.
 5. `npm run dev` y entra en `/login` con el usuario creado en el paso 3.
 
+### Desplegar en Vercel
+
+Alternativa a correrlo en local: importar este repositorio en [Vercel](https://vercel.com/new) y configurar las mismas variables del paso 4 en Project → Settings → Environment Variables. Las que empiezan por `NEXT_PUBLIC_` van como tipo **Config** (se exponen al navegador); `SUPABASE_SERVICE_ROLE_KEY` y `ANTHROPIC_API_KEY` van como tipo **Secret**. Nota: Supabase permite compartir un único proyecto entre varias apps con RLS habilitado y `service_role` para el acceso real — por eso las tablas de Ethobox llevan el prefijo `ethobox_`, si convives con otro proyecto (como `campus_caniciencia`) en la misma cuenta gratuita de Supabase.
+
 ## Flujo de uso
 
 1. **Nuevo caso** (`/cases`) — nombre del perro y del tutor. Se crea automáticamente la ronda 1.
