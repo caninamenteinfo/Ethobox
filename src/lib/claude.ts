@@ -275,22 +275,41 @@ async function callClaudeTool<T>(
     throw new Error("ANTHROPIC_API_KEY no está configurada en el servidor.");
   }
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: userContent }],
-      tools: [tool],
-      tool_choice: { type: "tool", name: tool.name },
-    }),
-  });
+  // Corta la llamada nosotros mismos bastante antes del límite de la
+  // función en Vercel: así siempre devolvemos un JSON con mensaje claro,
+  // en vez de que la plataforma mate la función en seco sin respuesta legible.
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+  let response: Response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: ANTHROPIC_MODEL,
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: "user", content: userContent }],
+        tools: [tool],
+        tool_choice: { type: "tool", name: tool.name },
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(
+        `La IA ha tardado más de 45 segundos en responder durante "${stepLabel}" y se ha cancelado. Inténtalo de nuevo.`
+      );
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errText = await response.text();
@@ -312,6 +331,7 @@ async function callClaudeTool<T>(
   if (!toolUse) {
     throw new Error(`El modelo no devolvió el resultado esperado en "${stepLabel}".`);
   }
+
 
   return toolUse.input as T;
 }
